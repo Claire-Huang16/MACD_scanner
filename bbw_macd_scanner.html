@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BBW + MACD 金叉篩選器</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e8eaf0;
+    --text2: #8b90a8;
+    --text3: #555a72;
+    --accent: #4f8ef7;
+    --accent2: #3b7de8;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --purple: #a78bfa;
+    --mono: 'JetBrains Mono','Fira Code','Courier New',monospace;
+    --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; font-size: 14px; line-height: 1.6; }
+  .container { max-width: 1000px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
+  .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #4f8ef7 0%, #7c5cfc 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+  header p { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .badge { margin-left: auto; font-size: 11px; font-family: var(--mono); background: var(--bg3); border: 0.5px solid var(--border2); color: var(--text2); padding: 4px 10px; border-radius: 20px; letter-spacing: 0.5px; }
+  .card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; font-size: 13px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; }
+  label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; letter-spacing: 0.3px; }
+  input[type="text"], input[type="password"], input[type="number"], textarea, select {
+    width: 100%; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: var(--radius);
+    color: var(--text); font-family: var(--sans); font-size: 13px; padding: 8px 12px; outline: none; transition: border-color 0.15s;
+  }
+  textarea { font-family: var(--mono); resize: vertical; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,142,247,0.12); }
+  select option { background: var(--bg3); }
+  .api-row { display: flex; gap: 8px; align-items: flex-end; }
+  .api-row input { flex: 1; }
+  .api-status { font-size: 12px; margin-top: 8px; min-height: 18px; font-family: var(--mono); }
+  .api-status.ok { color: var(--success); }
+  .api-status.err { color: var(--danger); }
+  .params-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .params-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .params-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .filter-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .filter-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .filter-label { font-size: 13px; color: var(--text); flex: 1; }
+  .filter-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 20px; cursor: pointer; transition: 0.2s; }
+  .toggle-slider:before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px; background: var(--text3); border-radius: 50%; transition: 0.2s; }
+  .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(16px); background: #fff; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 1.5rem; }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 8px 16px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  button:hover { background: var(--bg2); border-color: var(--accent); color: var(--accent); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  button.ghost { background: transparent; border-color: transparent; color: var(--text2); }
+  button.ghost:hover { color: var(--text); border-color: var(--border2); background: var(--bg3); }
+  .preset-label { font-size: 12px; color: var(--text3); margin-right: 2px; }
+  .progress-wrap { display: none; margin-bottom: 1.5rem; }
+  .progress-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-family: var(--mono); }
+  .progress-track { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+  .error-box { display: none; padding: 12px 14px; border-radius: var(--radius); background: rgba(248,113,113,0.08); border: 0.5px solid rgba(248,113,113,0.25); color: var(--danger); font-size: 13px; margin-bottom: 1rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .stat-card { background: var(--bg3); border-radius: var(--radius); padding: 14px; border: 0.5px solid var(--border); }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 700; font-family: var(--mono); letter-spacing: -1px; }
+  .stat-value.green { color: var(--success); }
+  .stat-value.purple { color: var(--purple); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 0.5px solid var(--border); white-space: nowrap; }
+  thead th.r { text-align: right; }
+  thead th.c { text-align: center; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 10px 12px; vertical-align: middle; }
+  td.r { text-align: right; }
+  td.c { text-align: center; }
+  .sym { font-family: var(--mono); font-weight: 600; font-size: 14px; color: var(--text); }
+  .mono-val { font-family: var(--mono); font-size: 12px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.3px; white-space: nowrap; }
+  .tag.extreme { background: rgba(248,113,113,0.12); color: var(--danger); border: 0.5px solid rgba(248,113,113,0.25); }
+  .tag.squeeze { background: rgba(251,191,36,0.12); color: var(--warning); border: 0.5px solid rgba(251,191,36,0.25); }
+  .tag.golden { background: rgba(167,139,250,0.12); color: var(--purple); border: 0.5px solid rgba(167,139,250,0.25); }
+  .tag.no-cross { background: rgba(139,144,168,0.1); color: var(--text3); border: 0.5px solid var(--border); }
+  .dif-pos { color: var(--success); }
+  .dif-neg { color: var(--danger); }
+  .empty-row td { text-align: center; padding: 2.5rem; color: var(--text3); font-size: 13px; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text3); flex-wrap: wrap; gap: 8px; }
+  footer a { color: var(--text2); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+  .section-divider { display: flex; align-items: center; gap: 10px; margin: 0.5rem 0 1rem; }
+  .section-divider span { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
+  .section-divider hr { flex: 1; border: none; border-top: 0.5px solid var(--border); }
+  @media (max-width: 640px) {
+    .params-grid, .params-grid-4 { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    header { flex-wrap: wrap; }
+    .badge { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">📊</div>
+    <div>
+      <h1>BBW + MACD 金叉篩選器</h1>
+      <p>FinMind API × 布林通道壓縮 × DIF 上穿 DEA 複合條件</p>
+    </div>
+    <span class="badge">v2.0</span>
+  </header>
+
+  <!-- API 設定 -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      FinMind API 設定
+    </div>
+    <div class="api-row">
+      <div style="flex:1">
+        <label for="api-key">API Token</label>
+        <input type="password" id="api-key" placeholder="輸入你的 FinMind API Token">
+      </div>
+      <button onclick="testAPI()" id="test-btn" style="height:36px;margin-top:17px">驗證連線</button>
+    </div>
+    <div class="api-status" id="api-status"></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text3)">
+      還沒有帳號？<a href="https://finmindtrade.com" target="_blank" style="color:var(--accent)">前往 FinMind 免費註冊</a>，登入後在個人頁面取得 Token。免費版每天 600 次請求。
+    </div>
+  </div>
+
+  <!-- 條件過濾 -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      條件過濾設定
+    </div>
+
+    <div class="section-divider"><span>布林通道</span><hr></div>
+    <div class="params-grid" style="margin-bottom:1rem">
+      <div>
+        <label for="bb-length">週期（N）</label>
+        <input type="number" id="bb-length" value="20" min="5" max="60">
+      </div>
+      <div>
+        <label for="bb-std">標準差倍數</label>
+        <input type="number" id="bb-std" value="2" min="1" max="3" step="0.1">
+      </div>
+      <div>
+        <label for="bb-threshold">BBW 閾值（上限）</label>
+        <input type="number" id="bb-threshold" value="0.1" min="0.01" max="1" step="0.01">
+      </div>
+    </div>
+
+    <div class="section-divider"><span>MACD 參數</span><hr></div>
+    <div class="params-grid-4" style="margin-bottom:1rem">
+      <div>
+        <label for="macd-fast">快線 EMA</label>
+        <input type="number" id="macd-fast" value="12" min="2" max="50">
+      </div>
+      <div>
+        <label for="macd-slow">慢線 EMA</label>
+        <input type="number" id="macd-slow" value="26" min="5" max="100">
+      </div>
+      <div>
+        <label for="macd-signal">Signal 線</label>
+        <input type="number" id="macd-signal" value="9" min="2" max="30">
+      </div>
+      <div>
+        <label for="cross-lookback">金叉回溯天數</label>
+        <input type="number" id="cross-lookback" value="3" min="1" max="10" title="過去幾天內發生金叉視為有效">
+      </div>
+    </div>
+
+    <div class="section-divider"><span>啟用條件</span><hr></div>
+    <div class="filter-row">
+      <div>
+        <div class="filter-label">BBW 壓縮</div>
+        <div class="filter-sub">BBW 必須低於閾值</div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="filter-bbw" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="filter-row">
+      <div>
+        <div class="filter-label">MACD 金叉（DIF 上穿 DEA）</div>
+        <div class="filter-sub">近 N 天內 DIF 從下方穿越 DEA</div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="filter-golden" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="filter-row">
+      <div>
+        <div class="filter-label">DIF 在零軸以下金叉（更強勢）</div>
+        <div class="filter-sub">金叉發生時 DIF < 0，起漲初期</div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="filter-below-zero"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="filter-row">
+      <div>
+        <div class="filter-label">Histogram 由負轉正</div>
+        <div class="filter-sub">MACD 柱狀圖最新值 > 0</div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="filter-hist-pos"><span class="toggle-slider"></span></label>
+    </div>
+  </div>
+
+  <!-- 股票清單 -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      股票清單
+    </div>
+    <label for="stock-input">股票代號（每行一個，純數字）</label>
+    <textarea id="stock-input" rows="8">2330
+2317
+2454
+2382
+3711
+2308
+2881
+2412
+3034
+6415</textarea>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="scan-btn" onclick="runScan()">▶ 開始掃描</button>
+    <span class="preset-label">快速載入：</span>
+    <button onclick="loadPreset('semi')">半導體</button>
+    <button onclick="loadPreset('fin')">金融股</button>
+    <button onclick="loadPreset('server')">伺服器</button>
+    <button onclick="loadPreset('all')">全部電子股</button>
+    <button class="ghost" onclick="clearAll()">清除</button>
+  </div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-top">
+      <span id="progress-label">掃描中...</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-bar"></div>
+    </div>
+  </div>
+
+  <div class="error-box" id="error-msg"></div>
+
+  <div id="results-section" style="display:none">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">掃描總數</div>
+        <div class="stat-value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">BBW 壓縮</div>
+        <div class="stat-value green" id="stat-bbw">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MACD 金叉</div>
+        <div class="stat-value purple" id="stat-golden">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">條件命中</div>
+        <div class="stat-value green" id="stat-hit">—</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th class="r">收盤價</th>
+              <th class="r">BBW</th>
+              <th class="r">DIF</th>
+              <th class="r">DEA</th>
+              <th class="r">Hist</th>
+              <th class="c">BB 狀態</th>
+              <th class="c">MACD</th>
+            </tr>
+          </thead>
+          <tbody id="result-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>資料來源：FinMind TaiwanStockPrice</span>
+    <span>BBW = (上軌−下軌)÷中軌 ｜ DIF 上穿 DEA = 金叉</span>
+  </footer>
+
+</div>
+
+<script>
+const PRESETS = {
+  semi:   ['2330','2303','2308','2337','2344','2379','2454','3443','3711','6770','3034','6415','3035','6531','2385'],
+  fin:    ['2881','2882','2883','2884','2885','2886','2887','2891','2892','5876','5880'],
+  server: ['2317','2382','2357','2376','6669','3231','2353','3045','4906','3630'],
+  all:    ['2330','2303','2308','2337','2344','2379','2454','3443','3711','6770','3034','6415',
+           '2317','2327','2351','2324','2049','2059','2383','2395','3008','2409','3481',
+           '2357','2376','3045','6669','3231','2353','3037','6269','8046',
+           '2382','2356','2360','2301','2377','2376']
+};
+
+function loadPreset(t) { document.getElementById('stock-input').value = PRESETS[t].join('\n'); }
+
+function clearAll() {
+  document.getElementById('stock-input').value = '';
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('progress-wrap').style.display = 'none';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function setAPIStatus(msg, ok) {
+  const el = document.getElementById('api-status');
+  el.textContent = msg;
+  el.className = 'api-status ' + (ok ? 'ok' : 'err');
+}
+
+function setProgress(cur, total, label) {
+  const pct = total > 0 ? Math.round(cur / total * 100) : 0;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-label').textContent = label || `掃描中 ${cur}/${total}`;
+}
+
+function getDateRange(days) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
+
+async function fetchFinMind(stockId, apiKey) {
+  const { start, end } = getDateRange(180);
+  const url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${stockId}&start_date=${start}&end_date=${end}&token=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.status !== 200) throw new Error(json.msg || 'API error');
+  return json.data;
+}
+
+async function testAPI() {
+  const key = document.getElementById('api-key').value.trim();
+  if (!key) { setAPIStatus('請輸入 API Token', false); return; }
+  const btn = document.getElementById('test-btn');
+  btn.disabled = true; btn.textContent = '驗證中...';
+  setAPIStatus('連線中...', true);
+  try {
+    const data = await fetchFinMind('2330', key);
+    if (data && data.length > 0) {
+      setAPIStatus(`✓ 驗證成功，已取得 ${data.length} 筆 2330 資料`, true);
+    } else {
+      setAPIStatus('✗ 驗證失敗：無法取得資料', false);
+    }
+  } catch(e) {
+    setAPIStatus('✗ 驗證失敗：' + e.message, false);
+  }
+  btn.disabled = false; btn.textContent = '驗證連線';
+}
+
+// ── 布林通道 ──
+function calcBB(closes, length, std) {
+  if (closes.length < length) return null;
+  const slice = closes.slice(-length);
+  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+  const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / slice.length;
+  const sd = Math.sqrt(variance);
+  const upper = mean + std * sd;
+  const lower = mean - std * sd;
+  const bbw = mean > 0 ? (upper - lower) / mean : null;
+  return bbw != null ? { mean, upper, lower, bbw } : null;
+}
+
+// ── EMA ──
+function calcEMA(data, period) {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const result = [];
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result.push(ema);
+  for (let i = period; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
+}
+
+// ── MACD ──
+function calcMACD(closes, fast, slow, signal) {
+  if (closes.length < slow + signal) return null;
+  const emaFast = calcEMA(closes, fast);
+  const emaSlow = calcEMA(closes, slow);
+  const offset = emaFast.length - emaSlow.length;
+  const dif = emaSlow.map((v, i) => emaFast[i + offset] - v);
+  const dea = calcEMA(dif, signal);
+  const difOffset = dif.length - dea.length;
+  const hist = dea.map((v, i) => dif[i + difOffset] - v);
+  return { dif, dea, hist };
+}
+
+// ── 金叉偵測：過去 lookback 天內 DIF 上穿 DEA ──
+function detectGoldenCross(dif, dea, lookback) {
+  const n = Math.min(dif.length, dea.length);
+  const aligned_dif = dif.slice(dif.length - n);
+  const aligned_dea = dea.slice(dea.length - n);
+
+  for (let i = n - lookback; i < n; i++) {
+    if (i < 1) continue;
+    const todayAbove = aligned_dif[i] > aligned_dea[i];
+    const prevBelow  = aligned_dif[i - 1] <= aligned_dea[i - 1];
+    if (todayAbove && prevBelow) return true;
+  }
+  return false;
+}
+
+async function runScan() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) { showError('請先輸入 FinMind API Token 並驗證'); return; }
+
+  const raw = document.getElementById('stock-input').value.trim();
+  if (!raw) { showError('請輸入至少一個股票代號'); return; }
+
+  const symbols = [...new Set(raw.split('\n').map(s => s.trim().replace(/\.TW$/i, '')).filter(Boolean))];
+
+  // 參數
+  const bbLen   = parseInt(document.getElementById('bb-length').value) || 20;
+  const bbStd   = parseFloat(document.getElementById('bb-std').value) || 2;
+  const bbThr   = parseFloat(document.getElementById('bb-threshold').value) || 0.1;
+  const fast    = parseInt(document.getElementById('macd-fast').value) || 12;
+  const slow    = parseInt(document.getElementById('macd-slow').value) || 26;
+  const sig     = parseInt(document.getElementById('macd-signal').value) || 9;
+  const lookbk  = parseInt(document.getElementById('cross-lookback').value) || 3;
+
+  // 過濾開關
+  const useBBW       = document.getElementById('filter-bbw').checked;
+  const useGolden    = document.getElementById('filter-golden').checked;
+  const useBelowZero = document.getElementById('filter-below-zero').checked;
+  const useHistPos   = document.getElementById('filter-hist-pos').checked;
+
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('result-tbody').innerHTML = '';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('scan-btn').disabled = true;
+
+  const results = [];
+  let scanned = 0, failed = 0, bbwCount = 0, goldenCount = 0;
+
+  for (const sym of symbols) {
+    setProgress(scanned, symbols.length, `抓取 ${sym}… (${scanned + 1}/${symbols.length})`);
+    try {
+      const data = await fetchFinMind(sym, apiKey);
+      if (!data || data.length < slow + sig + 5) { failed++; scanned++; continue; }
+
+      const sorted = data.sort((a, b) => a.date.localeCompare(b.date));
+      const closes = sorted.map(d => parseFloat(d.close)).filter(v => !isNaN(v));
+
+      // 計算 BBW
+      const bb = calcBB(closes, bbLen, bbStd);
+      if (!bb) { scanned++; continue; }
+      const bbwOK = bb.bbw < bbThr;
+      if (bbwOK) bbwCount++;
+
+      // 計算 MACD
+      const macd = calcMACD(closes, fast, slow, sig);
+      if (!macd) { scanned++; continue; }
+
+      const latestDIF  = macd.dif[macd.dif.length - 1];
+      const latestDEA  = macd.dea[macd.dea.length - 1];
+      const latestHist = macd.hist[macd.hist.length - 1];
+      const hasGolden  = detectGoldenCross(macd.dif, macd.dea, lookbk);
+      if (hasGolden) goldenCount++;
+
+      // 條件判斷
+      let pass = true;
+      if (useBBW && !bbwOK) pass = false;
+      if (useGolden && !hasGolden) pass = false;
+      if (useBelowZero && !(hasGolden && latestDIF < 0)) pass = false;
+      if (useHistPos && !(latestHist > 0)) pass = false;
+
+      if (pass) {
+        results.push({
+          sym,
+          close: closes[closes.length - 1],
+          bbw: bb.bbw,
+          upper: bb.upper,
+          lower: bb.lower,
+          dif: latestDIF,
+          dea: latestDEA,
+          hist: latestHist,
+          hasGolden,
+          bbwOK
+        });
+      }
+    } catch(e) {
+      failed++;
+      console.warn(`${sym} 失敗:`, e.message);
+    }
+    scanned++;
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  setProgress(symbols.length, symbols.length, '掃描完成');
+  document.getElementById('scan-btn').disabled = false;
+  document.getElementById('progress-wrap').style.display = 'none';
+
+  // 排序：BBW 最小優先
+  results.sort((a, b) => a.bbw - b.bbw);
+
+  document.getElementById('stat-total').textContent = scanned;
+  document.getElementById('stat-bbw').textContent = bbwCount;
+  document.getElementById('stat-golden').textContent = goldenCount;
+  document.getElementById('stat-hit').textContent = results.length;
+
+  const tbody = document.getElementById('result-tbody');
+  if (results.length === 0) {
+    const msg = failed === scanned
+      ? `所有請求失敗（${failed} 檔）— 請確認 API Token 是否正確`
+      : `未找到符合條件的標的（掃描 ${scanned} 檔，${failed} 檔失敗）`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${msg}</td></tr>`;
+  } else {
+    results.forEach(r => {
+      const isExtreme = r.bbw < bbThr * 0.5;
+      const difColor = r.dif >= 0 ? 'var(--success)' : 'var(--danger)';
+      const histColor = r.hist >= 0 ? 'var(--success)' : 'var(--danger)';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="sym">${r.sym}</span></td>
+        <td class="r"><span class="mono-val">${r.close.toFixed(2)}</span></td>
+        <td class="r"><span class="mono-val" style="color:${isExtreme ? 'var(--danger)' : 'var(--warning)'}">${r.bbw.toFixed(4)}</span></td>
+        <td class="r"><span class="mono-val" style="color:${difColor}">${r.dif.toFixed(4)}</span></td>
+        <td class="r"><span class="mono-val" style="color:var(--text2)">${r.dea.toFixed(4)}</span></td>
+        <td class="r"><span class="mono-val" style="color:${histColor}">${r.hist.toFixed(4)}</span></td>
+        <td class="c"><span class="tag ${isExtreme ? 'extreme' : 'squeeze'}">${isExtreme ? '極度壓縮' : '壓縮中'}</span></td>
+        <td class="c"><span class="tag ${r.hasGolden ? 'golden' : 'no-cross'}">${r.hasGolden ? '金叉' : '未交叉'}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('results-section').style.display = 'block';
+}
+</script>
+</body>
+</html>
